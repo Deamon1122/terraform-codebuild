@@ -1,0 +1,12 @@
+- name : demo on loops
+  hosts : PROD
+  tasks :
+    - name : print the value from tasks
+      debug : 
+        msg : "{{item}}"
+      loop :
+        - HI
+        - AYAZ
+        - HOW ARE YOU 
+
+    

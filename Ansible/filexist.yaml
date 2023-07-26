@@ -1,0 +1,15 @@
+- name: demo on file exist 
+  hosts : PROD
+  tasks : 
+    - name: Check that the somefile.conf exists
+      stat: 
+        path: /opt/abc
+      register: stat_result
+
+    - name : print the stat of file 
+      debug :
+        msg : "{{stat_result}}"
+
+    - name : check file exist or not
+      debug :
+        msg : "{{stat_result.stat.exists}}"    

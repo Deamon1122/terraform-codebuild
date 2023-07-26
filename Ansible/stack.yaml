@@ -1,0 +1,98 @@
+---
+- name : demo on web stack
+  hosts : PROD
+  vars : 
+    MOD_JK_URL : https://dlcdn.apache.org/tomcat/tomcat-connectors/jk/tomcat-connectors-1.2.48-src.tar.gz
+  become : yes
+  tasks :
+
+    - name : Define MOD_JK_SRC var
+      shell : echo "{{MOD_JK_URL}}" | awk -F / '{print $NF}' 
+      register : tar
+
+    - name : Define MOD_JK_SRC var
+      shell : echo "{{MOD_JK_URL}}" | awk -F / '{print $NF}' | sed 's/.tar.gz//'
+      register : src  
+
+    - name : print the var 
+      debug : 
+        msg : "{{tar.stdout}}"
+
+    - name : Creating the list and dictionary variables using 'shorthand' YAML 
+      ansible.builtin.set_fact :
+        MOD_JK_TAR : "{{tar.stdout}}"  
+
+    - name : print the set_fact 
+      debug :
+        msg : "{{MOD_JK_TAR}}"  
+
+    - name : Creating the list and dictionary variables using 'shorthand' YAML 
+      ansible.builtin.set_fact :
+        MOD_JK_SRC : "{{src.stdout}}"   
+
+    - name : print the set_fact 
+      debug :
+        msg : "{{MOD_JK_SRC}}"           
+
+    - name : installing Web server
+      yum : 
+        name : "{{item.name}}"
+        state : "{{item.state}}"
+      loop :
+        -  { name: 'httpd', state : 'latest' }
+        -  { name: 'gcc' , state : 'latest' }
+        -  { name: 'httpd-devel', state : 'latest' }
+        -  { name: 'make', state : 'latest' }
+
+    - name : Starting service
+      service :
+        name : httpd
+        state : started
+
+    - name : Starting Web service
+      service :
+        name : httpd
+        state : started
+
+    - name : downloading tomcat mod_jk
+      ansible.builtin.get_url :
+        url : "{{MOD_JK_URL}}"
+        dest : /opt/ 
+
+    - name : extarcting mod_jk
+      ansible.builtin.unarchive :
+        src : "/opt/{{MOD_JK_TAR}}"
+        dest : /opt/
+        remote_src : yes
+    
+    - name : compile mod_jk
+      shell : "{{item}}"
+      args :
+         chdir : "/opt/{{MOD_JK_SRC}}/native"
+      loop :
+        - ./configure --with-apxs=/bin/apxs
+        - make 
+        - make install 
+
+    - name : create the modjk.conf file
+      ansible.builtin.copy:
+         content:
+                LoadModule jk_module modules/mod_jk.so
+                JkWorkersFile conf.d/workers.properties
+                JkLogFile logs/mod_jk.log
+                JkLogLevel info
+                JkLogStampFormat "[%a %b %d %H:%M:%S %Y]"
+                JkOptions +ForwardKeySize +ForwardURICompat -ForwardDirectories
+                JkRequestLogFormat "%w %V %T"
+                JkMount /LoginApp tomcatA
+                JkMount /LoginApp/* tomcatA   
+         dest: /etc/httpd/conf.d/modjk.conf
+
+    - name : create and update workers.properties file
+      ansible.builtin.copy:
+        content :
+                worker.list=tomcatA
+                worker.tomcatA.type=ajp13
+                worker.tomcatA.host=10.128.0.5
+                worker.tomcatA.port=8009     
+        dest: /etc/httpd/conf.d/worker.properties
